@@ -1,0 +1,679 @@
+# ===============================
+# APPLICATION NINEA - VERSION PRO MAX
+# ===============================
+
+import streamlit as st
+import pandas as pd
+from sqlalchemy import create_engine
+import plotly.express as px
+
+# -------------------------------
+# CONFIGURATION
+# -------------------------------
+st.set_page_config(
+    page_title="Application NINEA",
+    page_icon="📊",
+    layout="wide"
+)
+
+# -------------------------------
+# STYLE
+# -------------------------------
+st.markdown("""
+<style>
+    /* Style général */
+    .main {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    }
+    
+    /* Titre principal fixe */
+    .main-title {
+        background: linear-gradient(135deg, #003366 0%, #0055a4 100%);
+        padding: 1rem;
+        border-radius: 15px;
+        text-align: center;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    
+    .main-title h1 {
+        color: white;
+        font-size: 2rem;
+        font-weight: bold;
+        margin: 0;
+    }
+    
+    .main-title p {
+        color: #e0e0e0;
+        margin: 0;
+        font-size: 0.9rem;
+    }
+    
+    /* Autres titres */
+    h1, h2, h3 {
+        color: #003366;
+        font-weight: bold;
+    }
+    
+    /* Cartes métriques */
+    .stMetric {
+        background-color: white;
+        padding: 20px;
+        border-radius: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        transition: transform 0.3s;
+    }
+    
+    .stMetric:hover {
+        transform: translateY(-5px);
+    }
+    
+    /* Conteneur d'accueil */
+    .hero-container {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 2rem;
+        border-radius: 20px;
+        color: white;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    
+    .hero-title {
+        font-size: 3rem;
+        font-weight: bold;
+        color: white;
+        margin-bottom: 1rem;
+    }
+    
+    .hero-subtitle {
+        font-size: 1.2rem;
+        color: #f0f0f0;
+    }
+    
+    /* Cartes info */
+    .info-card {
+        background-color: white;
+        padding: 1.5rem;
+        border-radius: 15px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin: 1rem 0;
+        text-align: center;
+        transition: all 0.3s;
+    }
+    
+    .info-card:hover {
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        transform: translateY(-3px);
+    }
+    
+    .info-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
+    
+    .info-title {
+        font-size: 1.3rem;
+        font-weight: bold;
+        color: #003366;
+        margin-bottom: 0.5rem;
+    }
+    
+    .info-text {
+        color: #666;
+        font-size: 0.9rem;
+    }
+    
+    /* Départements */
+    .department-badge {
+        background-color: #e8f4f8;
+        padding: 10px;
+        border-radius: 10px;
+        text-align: center;
+        font-weight: bold;
+        color: #003366;
+        margin: 0.5rem 0;
+    }
+    
+    footer {
+        text-align: center;
+        padding: 2rem;
+        color: #666;
+        margin-top: 3rem;
+        border-top: 1px solid #ddd;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# -------------------------------
+# TITRE PRINCIPAL FIXE (affiche sur toutes les pages)
+# -------------------------------
+def show_main_title():
+    st.markdown("""
+    <div class="main-title">
+        <h1>📊 DONNEE NINEA SRSD (FATICK)</h1>
+        <p>Agence Nationale de la Statistique et de la Démographie - Région de Fatick</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+# -------------------------------
+# FONCTION POUR REGROUPER TOUTES LES VARIANTES ENTREPRISE INDIVIDUELLE
+# -------------------------------
+def regrouper_entreprise_individuelle(df, colonne):
+    """
+    Regroupe toutes les variantes de 'ENTREPRISE INDIVIDUELLE' en une seule catégorie
+    """
+    # Liste de toutes les variantes possibles
+    variantes = [
+        "ENTREPRISE INDIVIDUELLE",
+        "Entreprise Individuelle", 
+        "entreprise individuelle",
+        "ENREPRISE INDIVIDUELLE",
+        "ENTREPRISE INDIVIDUELE",
+        "ENTREPRISE INDIVIDUEL",
+        "ENTREPRISE INDIVID",
+        "ENTREPRISE INDIVIDU",
+        "ENTREPRISE INDIV",
+        "ENTRE INDIVIDUELLE",
+        "ENTREPRISE INDIVIDUEL",
+        "E. INDIVIDUELLE",
+        "E.I",
+        "EI",
+        "entreprise ind",
+        "ENTREPRISE INMOBILIELLE",
+        "ENTREPRISE INCORPORELLE",
+        "ENTREPRISE IMMOBILIER",
+        "ENTREPRISE IMMOBILIERE",
+        "INDIVIDUELLE",
+        "INDIVIDUEL"
+    ]
+    
+    # Remplacer toutes les variantes par "ENTREPRISE INDIVIDUELLE"
+    for variante in variantes:
+        df[colonne] = df[colonne].replace(variante, "ENTREPRISE INDIVIDUELLE")
+    
+    # Utiliser aussi str.contains pour capturer celles qui contiennent ces mots
+    mask = df[colonne].str.contains("INDIVID|ENTREPRISE|EI|E.I", case=False, na=False)
+    df.loc[mask, colonne] = "ENTREPRISE INDIVIDUELLE"
+    
+    return df
+
+# -------------------------------
+# CONNEXION POSTGRESQL
+# -------------------------------
+@st.cache_resource
+def get_engine():
+    return create_engine(
+        "postgresql+psycopg2://postgres:ansdfatick@localhost:5432/ANSD_FATICK"
+    )
+
+engine = get_engine()
+
+# -------------------------------
+# MENU
+# -------------------------------
+st.sidebar.title("📂 Navigation")
+
+page = st.sidebar.radio(
+    "Choisir une page",
+    [
+        "🏠 Accueil",
+        "📄 Données NINEA",
+        "🔍 Recherche par CNI",
+        "📊 Statistiques",
+        "📊 Analyse avancée",
+        "📊 Activité dominante",
+        "🗄️ Exploration base"
+    ]
+)
+
+# -------------------------------
+# BOUTON REFRESH
+# -------------------------------
+if st.sidebar.button("🔄 Rafraîchir les données"):
+    st.cache_data.clear()
+    st.rerun()
+
+# ===============================
+# PAGE ACCUEIL
+# ===============================
+if page == "🏠 Accueil":
+    show_main_title()
+    
+    st.markdown("""
+    <div class="hero-container">
+        <div class="hero-title">📊 ANSD FATICK</div>
+        <div class="hero-subtitle">Système d'Analyse des données NINEA</div>
+        <div class="hero-subtitle">Région de Fatick - Sénégal</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    try:
+        df_stats = pd.read_sql("SELECT COUNT(*) as total FROM ninea", engine)
+        total_entreprises = df_stats['total'].iloc[0]
+        
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.markdown("""
+            <div class="info-card">
+                <div class="info-icon">🏢</div>
+                <div class="info-title">Entreprises</div>
+                <div class="info-text">{}</div>
+            </div>
+            """.format(total_entreprises), unsafe_allow_html=True)
+            
+        with col2:
+            st.markdown("""
+            <div class="info-card">
+                <div class="info-icon">📅</div>
+                <div class="info-title">Année 2026</div>
+                <div class="info-text">Données actualisées</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+        with col3:
+            st.markdown("""
+            <div class="info-card">
+                <div class="info-icon">📍</div>
+                <div class="info-title">3 Départements</div>
+                <div class="info-text">Fatick, Foundiougne, Gossas</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+        with col4:
+            st.markdown("""
+            <div class="info-card">
+                <div class="info-icon">📊</div>
+                <div class="info-title">Analyse en temps réel</div>
+                <div class="info-text">PostgreSQL</div>
+            </div>
+            """, unsafe_allow_html=True)
+    except:
+        pass
+    
+    st.markdown("---")
+    
+    st.markdown("### 🎯 Objectifs de l'application")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("""
+        <div class="info-card">
+            <div class="info-icon">📈</div>
+            <div class="info-title">Analyse économique</div>
+            <div class="info-text">
+                • Suivi des créations d'entreprises<br>
+                • Analyse des tendances par secteur<br>
+                • Évolution dans le temps
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="info-card">
+            <div class="info-icon">🗺️</div>
+            <div class="info-title">Analyse territoriale</div>
+            <div class="info-text">
+                • Répartition par département<br>
+                • Détail par commune<br>
+                • Cartographie économique
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with col2:
+        st.markdown("""
+        <div class="info-card">
+            <div class="info-icon">🔍</div>
+            <div class="info-title">Recherche avancée</div>
+            <div class="info-text">
+                • Recherche par CNI<br>
+                • Filtres personnalisés<br>
+                • Export des données
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="info-card">
+            <div class="info-icon">📊</div>
+            <div class="info-title">Statistiques</div>
+            <div class="info-text">
+                • Graphiques interactifs<br>
+                • KPIs en temps réel<br>
+                • Analyses comparatives
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    st.markdown("### 📍 Départements couverts")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("""
+        <div class="department-badge">
+            🏙️ FATICK<br>
+            Chef-lieu de région
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with col2:
+        st.markdown("""
+        <div class="department-badge">
+            ⚓ FOUNDIOUGNE<br>
+            Zone économique
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with col3:
+        st.markdown("""
+        <div class="department-badge">
+            🌾 GOSSAS<br>
+            Zone agricole
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    st.markdown("""
+    <footer>
+        <p>© 2026 - Agence Nationale de la Statistique et de la Démographie (ANSD)</p>
+        <p>Région de Fatick - Sénégal | Données NINEA</p>
+    </footer>
+    """, unsafe_allow_html=True)
+
+# ===============================
+# PAGE DONNÉES
+# ===============================
+elif page == "📄 Données NINEA":
+    show_main_title()
+    st.title("📄 Données NINEA")
+
+    df = pd.read_sql(
+        "SELECT * FROM ninea",
+        engine
+    )
+
+    st.metric(
+        "Nombre total de lignes",
+        df.shape[0]
+    )
+
+    st.dataframe(df, use_container_width=True)
+
+# ===============================
+# PAGE RECHERCHE CNI
+# ===============================
+elif page == "🔍 Recherche par CNI":
+    show_main_title()
+    st.title("🔍 Recherche par CNI")
+
+    cni = st.text_input(
+        "Entrer le numéro CNI"
+    )
+
+    if cni:
+        query = f"""
+        SELECT 
+            n.nom_complet,
+            n.telephone,
+            n.cni,
+            n.sexe,
+            n.activite_principale,
+            n.regime,
+            n.forme_juridique,
+            n.date_depot,
+            c.nom AS commune,
+            d.nom AS departement
+        FROM ninea n
+        JOIN commune c ON n.commune_id = c.id
+        JOIN departement d ON c.departement_id = d.id
+        WHERE n.cni = '{cni}'
+        """
+
+        resultat = pd.read_sql(query, engine)
+
+        if resultat.shape[0] > 0:
+            st.success("Entreprise trouvée ✅")
+            st.dataframe(resultat, use_container_width=True)
+        else:
+            st.error("Aucune donnée trouvée")
+
+# ===============================
+# PAGE STATISTIQUES - CORRIGÉE (Regroupement ENTREPRISE INDIVIDUELLE en UNE seule bande)
+# ===============================
+elif page == "📊 Statistiques":
+    show_main_title()
+    st.title("📊 Statistiques générales")
+
+    df = pd.read_sql("SELECT * FROM ninea", engine)
+
+    df["date_depot"] = pd.to_datetime(df["date_depot"], errors="coerce")
+
+    # Choix année
+    annees = sorted(df["date_depot"].dt.year.dropna().unique())
+    annee_choisie = st.selectbox("📅 Choisir une année", annees)
+
+    df_filtre = df[df["date_depot"].dt.year == annee_choisie]
+
+    # KPI
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric(f"Entreprises {annee_choisie}", df_filtre.shape[0])
+    with col2:
+        st.metric("Total entreprises", df.shape[0])
+
+    # Répartition Physique / Morale
+    st.subheader("📊 Répartition Physique / Morale")
+    regime_counts = df_filtre["regime"].value_counts().reset_index()
+    regime_counts.columns = ["Régime", "Nombre"]
+    fig_regime = px.bar(regime_counts, x="Régime", y="Nombre", text="Nombre", color="Régime")
+    st.plotly_chart(fig_regime, use_container_width=True)
+
+    # Répartition des formes juridiques - DIAGRAMME EN BANDES (horizontal)
+    # avec regroupement de TOUTES les variantes ENTREPRISE INDIVIDUELLE en UNE SEULE bande
+    st.subheader("📊 Répartition des formes juridiques")
+    
+    # Nettoyer les valeurs
+    df_filtre["forme_juridique"] = df_filtre["forme_juridique"].fillna("Non renseigné")
+    
+    # Appliquer le regroupement des variantes ENTREPRISE INDIVIDUELLE
+    df_filtre = regrouper_entreprise_individuelle(df_filtre, "forme_juridique")
+    
+    forme_counts = df_filtre["forme_juridique"].value_counts().reset_index()
+    forme_counts.columns = ["Forme juridique", "Nombre"]
+    
+    # Trier par ordre croissant pour l'affichage horizontal (du plus petit au plus grand)
+    forme_counts = forme_counts.sort_values("Nombre", ascending=True)
+    
+    # Diagramme en bandes horizontales
+    fig_bar_horizontal = px.bar(
+        forme_counts,
+        x="Nombre",
+        y="Forme juridique",
+        text="Nombre",
+        color="Nombre",
+        orientation='h',
+        color_continuous_scale='Blues'
+    )
+    
+    fig_bar_horizontal.update_layout(
+        xaxis_title="Nombre d'entreprises",
+        yaxis_title="Forme juridique",
+        height=max(450, len(forme_counts) * 40),
+        showlegend=False
+    )
+    
+    fig_bar_horizontal.update_traces(textposition='outside')
+    
+    st.plotly_chart(fig_bar_horizontal, use_container_width=True)
+
+# ===============================
+# PAGE ANALYSE AVANCÉE - CORRIGÉE (Foundiougne au lieu de Fondation)
+# ===============================
+elif page == "📊 Analyse avancée":
+    show_main_title()
+    st.title("📊 Analyse territoriale")
+
+    query = """
+    SELECT 
+        n.regime,
+        n.activite_principale,
+        c.nom AS commune,
+        d.nom AS departement
+    FROM ninea n
+    JOIN commune c ON n.commune_id = c.id
+    JOIN departement d ON c.departement_id = d.id
+    """
+
+    df = pd.read_sql(query, engine)
+    
+    # CORRECTION: Remplacer "Fondation" par "Foundiougne" dans les données
+    df["departement"] = df["departement"].replace("Fondation", "Foundiougne")
+    
+    # Répartition par département
+    st.subheader("📍 Répartition par département")
+    repart_dep = df["departement"].value_counts().reset_index()
+    repart_dep.columns = ["Département", "Nombre"]
+    fig_dep = px.bar(repart_dep, x="Département", y="Nombre", text="Nombre", color="Département")
+    st.plotly_chart(fig_dep, use_container_width=True)
+
+    # Sélecteur département - les valeurs sont maintenant correctes
+    departements = sorted(df["departement"].unique())
+    choix_dep = st.selectbox("Choisir un département", departements)
+    df_dep = df[df["departement"] == choix_dep]
+
+    # Résultats département
+    total_dep = df_dep.shape[0]
+    regime_counts = df_dep["regime"].value_counts()
+    
+    st.info(f"**Département : {choix_dep}**")
+    st.metric("📊 Nombre total d'entreprises", total_dep)
+    for regime_value, count in regime_counts.items():
+        st.metric(label=f"🏢 {regime_value}", value=count)
+
+    # TITRE: Répartition par commune
+    st.subheader("📍 Répartition par commune")
+    
+    repart_commune = df_dep["commune"].value_counts().reset_index()
+    repart_commune.columns = ["Commune", "Nombre"]
+    fig_com = px.bar(repart_commune, x="Commune", y="Nombre", text="Nombre", color="Commune")
+    st.plotly_chart(fig_com, use_container_width=True)
+
+    # Sélecteur commune
+    communes = sorted(df_dep["commune"].unique())
+    choix_commune = st.selectbox("Choisir une commune", communes)
+    df_commune = df_dep[df_dep["commune"] == choix_commune]
+
+    # Résultats commune
+    total_com = df_commune.shape[0]
+    regime_counts_com = df_commune["regime"].value_counts()
+    
+    st.success(f"**Commune : {choix_commune}**")
+    st.metric("📊 Nombre total d'entreprises", total_com)
+    for regime_value, count in regime_counts_com.items():
+        st.metric(label=f"🏢 {regime_value}", value=count)
+
+# ===============================
+# PAGE ACTIVITÉ DOMINANTE - CORRIGÉE (Foundiougne au lieu de Fondation)
+# ===============================
+elif page == "📊 Activité dominante":
+    show_main_title()
+    st.title("📊 Activités dominantes")
+
+    query = """
+    SELECT 
+        n.activite_principale,
+        c.nom AS commune,
+        d.nom AS departement
+    FROM ninea n
+    JOIN commune c ON n.commune_id = c.id
+    JOIN departement d ON c.departement_id = d.id
+    """
+
+    df = pd.read_sql(query, engine)
+    
+    # CORRECTION: Remplacer "Fondation" par "Foundiougne" dans les données
+    df["departement"] = df["departement"].replace("Fondation", "Foundiougne")
+
+    # Top 4 activités par département
+    st.subheader("📍 Top 4 activités dominantes par département")
+
+    top_activites = df["activite_principale"].value_counts().head(4).index
+    df_top = df[df["activite_principale"].isin(top_activites)]
+
+    dep_counts = df_top.groupby(["departement", "activite_principale"]).size().reset_index(name="Nombre")
+
+    fig_act_dep = px.bar(
+        dep_counts,
+        x="departement",
+        y="Nombre",
+        color="activite_principale",
+        barmode="group"
+    )
+
+    fig_act_dep.update_layout(
+        xaxis_title="Département",
+        yaxis_title="Nombre d'entreprises",
+        legend_title="Activité principale"
+    )
+
+    st.plotly_chart(fig_act_dep, use_container_width=True)
+
+    # Top 4 activités par commune
+    st.subheader("📍 Top 4 activités dominantes par commune")
+
+    # Sélecteur département
+    departements = sorted(df["departement"].unique())
+    choix_dep = st.selectbox("Choisir un département pour l'analyse par commune", departements, key="dep_activite")
+    df_dep = df[df["departement"] == choix_dep]
+
+    # Sélecteur commune
+    communes = sorted(df_dep["commune"].unique())
+    choix_commune = st.selectbox("Choisir une commune", communes, key="com_activite")
+    df_commune = df_dep[df_dep["commune"] == choix_commune]
+
+    # Top 4 activités pour la commune
+    top_activites_commune = df_commune["activite_principale"].value_counts().head(4).reset_index()
+    top_activites_commune.columns = ["Activité", "Nombre"]
+
+    if not top_activites_commune.empty:
+        fig_commune = px.bar(
+            top_activites_commune,
+            x="Activité",
+            y="Nombre",
+            text="Nombre",
+            color="Activité"
+        )
+        fig_commune.update_layout(
+            xaxis_title="Activité",
+            yaxis_title="Nombre d'entreprises"
+        )
+        st.plotly_chart(fig_commune, use_container_width=True)
+    else:
+        st.info(f"Aucune activité trouvée pour la commune de {choix_commune}")
+
+# ===============================
+# PAGE EXPLORATION BASE
+# ===============================
+elif page == "🗄️ Exploration base":
+    show_main_title()
+    st.title("🗄️ Exploration de la base")
+
+    tables = pd.read_sql("""
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema='public'
+    """, engine)
+
+    table = st.selectbox("Choisir une table", tables["table_name"])
+
+    if table:
+        df = pd.read_sql(f"SELECT * FROM {table}", engine)
+        st.success(f"Table {table} chargée ✅")
+        st.metric("Nombre de lignes", df.shape[0])
+        st.dataframe(df.head(50), use_container_width=True)
