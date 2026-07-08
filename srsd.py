@@ -9,9 +9,133 @@ import sqlite3
 from datetime import datetime
 from sqlalchemy import create_engine, text
 
-# -------------------------------
-# CONFIGURATION
-# -------------------------------
+# ===============================
+# PAGE DE CONNEXION - AJOUTÉE
+# ===============================
+
+# Mot de passe défini
+PASSWORD = "ousmanesow555"
+
+# Vérifier si l'utilisateur est déjà connecté
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+
+# Si l'utilisateur n'est pas authentifié, afficher la page de connexion
+if not st.session_state.authenticated:
+    st.set_page_config(page_title="SRSD FATICK - Connexion", page_icon="🔐", layout="centered")
+    
+    # CSS pour la page de connexion
+    st.markdown("""
+    <style>
+        .login-container {
+            max-width: 450px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            text-align: center;
+            margin-top: 3rem;
+        }
+        .login-title {
+            background: linear-gradient(135deg, #003366 0%, #0055a4 100%);
+            padding: 1.5rem;
+            border-radius: 15px;
+            margin-bottom: 1.5rem;
+        }
+        .login-title h1 {
+            color: white;
+            font-size: 1.5rem;
+            margin: 0;
+        }
+        .login-title p {
+            color: #e0e0e0;
+            font-size: 0.85rem;
+            margin: 0.3rem 0 0 0;
+        }
+        .login-subtitle {
+            font-size: 1rem;
+            color: #333;
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+        .login-subtitle strong {
+            color: #003366;
+        }
+        .stButton button {
+            background: linear-gradient(135deg, #003366 0%, #0055a4 100%) !important;
+            color: white !important;
+            font-weight: bold !important;
+            width: 100% !important;
+            padding: 0.6rem !important;
+            border-radius: 10px !important;
+            border: none !important;
+            font-size: 1rem !important;
+        }
+        .stButton button:hover {
+            opacity: 0.9 !important;
+            transform: scale(1.02);
+        }
+        .error-message {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 0.75rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+        .footer-login {
+            text-align: center;
+            color: #999;
+            font-size: 0.75rem;
+            margin-top: 1.5rem;
+        }
+        div[data-testid="stForm"] { border: none; padding: 0; }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Affichage de la page de connexion
+    st.markdown("""
+    <div class="login-container">
+        <div class="login-title">
+            <h1>📊 SRSD FATICK</h1>
+            <p>Service Régional de la Statistique et de la Démographie</p>
+        </div>
+        <div class="login-subtitle">
+            De la donnée brute à la décision locale<br>
+            <strong>Conception d'une plateforme de système d'information<br>
+            statistique multisectoriel pour l'analyse et l'aide<br>
+            à la décision de la Région de Fatick</strong>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # Formulaire de connexion
+    with st.form(key="login_form", clear_on_submit=False):
+        password_input = st.text_input("🔐 Mot de passe", type="password", placeholder="Entrez le mot de passe")
+        submit_button = st.form_submit_button("🔓 Connexion")
+        
+        if submit_button:
+            if password_input == PASSWORD:
+                st.session_state.authenticated = True
+                st.success("✅ Connexion réussie ! Redirection en cours...")
+                st.rerun()
+            else:
+                st.markdown('<div class="error-message">❌ Mot de passe incorrect. Veuillez réessayer.</div>', unsafe_allow_html=True)
+    
+    st.markdown("""
+        <div class="footer-login">© 2026 - ANSD | Région de Fatick - Sénégal</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.stop()
+
+# ===============================
+# FIN PAGE DE CONNEXION
+# ===============================
+
+# ===============================
+# CONFIGURATION PRINCIPALE
+# ===============================
 st.set_page_config(page_title="Plateforme SRSD FATICK", page_icon="📊", layout="wide")
 
 st.markdown("""
