@@ -1597,8 +1597,8 @@ init_commerce_db()
 # -------------------------------
 @st.cache_resource
 def get_postgres_engine():
-    DATABASE_URL = "postgresql://neondb_owner:npg_TQFEIj4B8KvA@ep-curly-moon-asj0ue7y-pooler.c-4.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
-    return create_engine(DATABASE_URL)
+    DATABASE_URL = "postgresql://neondb_owner:npg_5OodQErGq9Lx@ep-curly-moon-asj0ue7y-pooler.c-4.eu-central-1.aws.neon.tech/neondb?sslmode=require"
+    return create_engine(DATABASE_URL, pool_pre_ping=True, connect_args={"connect_timeout": 30})
 
 def init_postgres_travail_table():
     try:
@@ -2479,11 +2479,13 @@ if 'edit_id' not in st.session_state:
 if 'edit_secteur' not in st.session_state:
     st.session_state.edit_secteur = None
 
-init_postgres_travail_table()
-init_postgres_artisanat_table()
-init_postgres_tourisme_table()
-init_postgres_transport_table()
-init_postgres_commerce_table()
+# Les appels aux fonctions d'initialisation des tables PostgreSQL ont été désactivés pour éviter les erreurs de connexion SSL au démarrage.
+# Les tables seront créées automatiquement lors de la première synchronisation via le bouton "Synchroniser".
+# init_postgres_travail_table()
+# init_postgres_artisanat_table()
+# init_postgres_tourisme_table()
+# init_postgres_transport_table()
+# init_postgres_commerce_table()
 
 # -------------------------------
 # MENU
