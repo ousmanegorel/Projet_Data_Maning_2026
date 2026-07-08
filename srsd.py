@@ -1597,7 +1597,8 @@ init_commerce_db()
 # -------------------------------
 @st.cache_resource
 def get_postgres_engine():
-    return create_engine("postgresql+psycopg2://postgres:ansdfatick@localhost:5432/ANSD_FATICK")
+    DATABASE_URL = "postgresql://neondb_owner:npg_TQFEIj4B8KvA@ep-curly-moon-asj0ue7y-pooler.c-4.eu-central-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+    return create_engine(DATABASE_URL)
 
 def init_postgres_travail_table():
     try:
