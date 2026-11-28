@@ -1628,320 +1628,6 @@ elif page == "🔍 Qualité des données":
                 """, unsafe_allow_html=True)
             
             st.markdown("---")
-            
-            # ==========================================
-            # 7. CARTE DU SÉNÉGAL - CHOROPLÈTHE
-            # ==========================================
-            st.markdown("### 🗺️ Carte du Sénégal - Score de complétude par DRS")
-            st.caption("Trimestre 1, 2026")
-            
-            @st.cache_data(show_spinner=False)
-            def load_senegal_geojson():
-                urls = [
-                    "https://raw.githubusercontent.com/Anonymousturtle/Senegal-Geojson/master/senegal_regions.geojson",
-                    "https://raw.githubusercontent.com/deldersveld/topojson/master/countries/senegal/senegal-regions.json",
-                    "https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson",
-                ]
-                for url in urls:
-                    try:
-                        with urllib.request.urlopen(url, timeout=10) as response:
-                            data = json.loads(response.read().decode('utf-8'))
-                            return data
-                    except Exception:
-                        continue
-                return None
-            
-            FALLBACK_POLYGONS = {
-                'DAKAR': [[-17.55, 14.65], [-17.35, 14.65], [-17.35, 14.80], [-17.55, 14.80], [-17.55, 14.65]],
-                'THIES': [[-17.10, 14.60], [-16.70, 14.60], [-16.70, 15.00], [-17.10, 15.00], [-17.10, 14.60]],
-                'DIOURBEL': [[-16.50, 14.50], [-16.00, 14.50], [-16.00, 15.00], [-16.50, 15.00], [-16.50, 14.50]],
-                'FATICK': [[-16.70, 14.10], [-16.10, 14.10], [-16.10, 14.60], [-16.70, 14.60], [-16.70, 14.10]],
-                'KAFFRINE': [[-15.80, 13.90], [-15.20, 13.90], [-15.20, 14.40], [-15.80, 14.40], [-15.80, 13.90]],
-                'KAOLLACK': [[-16.30, 13.90], [-15.80, 13.90], [-15.80, 14.30], [-16.30, 14.30], [-16.30, 13.90]],
-                'LOUGA': [[-16.50, 15.30], [-15.60, 15.30], [-15.60, 16.00], [-16.50, 16.00], [-16.50, 15.30]],
-                'SAINT_LOUIS': [[-16.70, 15.90], [-15.80, 15.90], [-15.80, 16.60], [-16.70, 16.60], [-16.70, 15.90]],
-                'MATAM': [[-13.80, 15.20], [-12.90, 15.20], [-12.90, 15.90], [-13.80, 15.90], [-13.80, 15.20]],
-                'TAMBACOUNDA': [[-14.20, 12.80], [-12.80, 12.80], [-12.80, 14.20], [-14.20, 14.20], [-14.20, 12.80]],
-                'KEDOUGOU': [[-12.60, 12.20], [-11.80, 12.20], [-11.80, 13.00], [-12.60, 13.00], [-12.60, 12.20]],
-                'KOLDA': [[-15.30, 12.50], [-14.40, 12.50], [-14.40, 13.20], [-15.30, 13.20], [-15.30, 12.50]],
-                'SEDHIOU': [[-15.80, 12.40], [-15.20, 12.40], [-15.20, 13.00], [-15.80, 13.00], [-15.80, 12.40]],
-                'ZIGUINCHOR': [[-16.60, 12.30], [-15.80, 12.30], [-15.80, 13.00], [-16.60, 13.00], [-16.60, 12.30]],
-            }
-            
-            carte_df = scores_df.copy()
-            
-            def cat_completude(val):
-                if val < 70:
-                    return '❌ < 70%'
-                elif val <= 90:
-                    return '⚠️ 70% - 90%'
-                else:
-                    return '✅ > 90%'
-            
-            carte_df['Categorie'] = carte_df['Complétude T1 2026 (%)'].apply(cat_completude)
-            
-            import unicodedata
-            def normalize_name(name):
-                if not name:
-                    return ""
-                name = unicodedata.normalize('NFKD', str(name))
-                name = ''.join(c for c in name if not unicodedata.combining(c))
-                return name.upper().replace(' ', '').replace('-', '').replace('_', '').strip()
-            
-            geojson_data = load_senegal_geojson()
-            
-            def detect_region_key(geojson):
-                if not geojson or 'features' not in geojson:
-                    return None
-                if len(geojson['features']) == 0:
-                    return None
-                props = geojson['features'][0].get('properties', {})
-                for key in ['NAME_1', 'name', 'NAME', 'nom', 'region', 'REGION', 'adm1_name', 'NAME_2', 'NOM_1', 'Nom']:
-                    if key in props:
-                        return key
-                for key, val in props.items():
-                    if isinstance(val, str):
-                        return key
-                return None
-            
-            if geojson_data and 'features' in geojson_data and len(geojson_data['features']) > 0:
-                region_key = detect_region_key(geojson_data)
-                
-                if region_key:
-                    for feature in geojson_data['features']:
-                        props = feature.get('properties', {})
-                        raw_name = props.get(region_key, '')
-                        props['_normalized'] = normalize_name(raw_name)
-                    
-                    carte_df['_normalized'] = carte_df['DRS'].apply(normalize_name)
-                    
-                    map_df = pd.DataFrame({
-                        'locations': [f['properties'].get(region_key, '') for f in geojson_data['features']],
-                        'DRS': [None] * len(geojson_data['features']),
-                        'Complétude': [None] * len(geojson_data['features']),
-                        'Score': [None] * len(geojson_data['features']),
-                        'Rang': [None] * len(geojson_data['features']),
-                        'Categorie': [None] * len(geojson_data['features'])
-                    })
-                    
-                    for i, feature in enumerate(geojson_data['features']):
-                        norm = feature['properties'].get('_normalized', '')
-                        match = carte_df[carte_df['_normalized'] == norm]
-                        if not match.empty:
-                            row = match.iloc[0]
-                            map_df.at[i, 'DRS'] = row['DRS']
-                            map_df.at[i, 'Complétude'] = row['Complétude T1 2026 (%)']
-                            map_df.at[i, 'Score'] = row['Score corrigé C']
-                            map_df.at[i, 'Rang'] = row['Rang']
-                            map_df.at[i, 'Categorie'] = row['Categorie']
-                    
-                    map_df['Complétude'] = map_df['Complétude'].fillna(0)
-                    map_df['Score'] = map_df['Score'].fillna(0)
-                    map_df['Rang'] = map_df['Rang'].fillna(0)
-                    map_df['DRS'] = map_df['DRS'].fillna(map_df['locations'])
-                    map_df['Categorie'] = map_df['Complétude'].apply(cat_completude)
-                    
-                    fig_carte = px.choropleth_mapbox(
-                        map_df,
-                        geojson=geojson_data,
-                        locations='locations',
-                        featureidkey=f'properties.{region_key}',
-                        color='Complétude',
-                        color_continuous_scale=[
-                            [0, '#e74c3c'],
-                            [0.7, '#e74c3c'],
-                            [0.7, '#f39c12'],
-                            [0.9, '#f39c12'],
-                            [0.9, '#27ae60'],
-                            [1, '#27ae60']
-                        ],
-                        range_color=[0, 100],
-                        mapbox_style='carto-positron',
-                        zoom=6,
-                        center={'lat': 14.5, 'lon': -14.5},
-                        opacity=0.75,
-                        hover_name='DRS',
-                        hover_data={
-                            'Complétude': ':.2f',
-                            'Score': ':.2f',
-                            'Rang': True,
-                            'Categorie': True,
-                            'locations': False
-                        },
-                        title='Score de complétude ajusté par DRS - T1 2026'
-                    )
-                    
-                    fig_carte.update_layout(
-                        height=650,
-                        margin=dict(l=0, r=0, t=50, b=0),
-                        coloraxis_colorbar=dict(
-                            title="Complétude (%)",
-                            tickvals=[0, 35, 70, 90, 100],
-                            ticktext=['0%', '35%', '70%', '90%', '100%']
-                        )
-                    )
-                    
-                    st.plotly_chart(fig_carte, use_container_width=True)
-                    st.caption("Source : Données PNLP - Réalisé avec GeoJSON des régions du Sénégal")
-                else:
-                    st.warning("⚠️ Impossible de détecter les noms de régions dans le GeoJSON. Affichage de la carte simplifiée.")
-                    geojson_data = None
-            
-            if not geojson_data or 'features' not in geojson_data or len(geojson_data['features']) == 0:
-                st.info("ℹ️ Carte simplifiée (polygones approximatifs). Le GeoJSON officiel n'a pas pu être chargé.")
-                
-                fallback_features = []
-                for drs, coords in FALLBACK_POLYGONS.items():
-                    drs_match = carte_df[carte_df['DRS'] == drs]
-                    if not drs_match.empty:
-                        row = drs_match.iloc[0]
-                        fallback_features.append({
-                            'type': 'Feature',
-                            'properties': {
-                                'DRS': drs,
-                                'Complétude': row['Complétude T1 2026 (%)'],
-                                'Score': row['Score corrigé C'],
-                                'Rang': row['Rang'],
-                                'Categorie': row['Categorie']
-                            },
-                            'geometry': {
-                                'type': 'Polygon',
-                                'coordinates': [coords]
-                            }
-                        })
-                
-                if fallback_features:
-                    fallback_geojson = {
-                        'type': 'FeatureCollection',
-                        'features': fallback_features
-                    }
-                    
-                    map_df_fb = pd.DataFrame([f['properties'] for f in fallback_features])
-                    
-                    fig_carte_fb = px.choropleth_mapbox(
-                        map_df_fb,
-                        geojson=fallback_geojson,
-                        locations='DRS',
-                        featureidkey='properties.DRS',
-                        color='Complétude',
-                        color_continuous_scale=[
-                            [0, '#e74c3c'],
-                            [0.7, '#e74c3c'],
-                            [0.7, '#f39c12'],
-                            [0.9, '#f39c12'],
-                            [0.9, '#27ae60'],
-                            [1, '#27ae60']
-                        ],
-                        range_color=[0, 100],
-                        mapbox_style='carto-positron',
-                        zoom=6,
-                        center={'lat': 14.5, 'lon': -14.5},
-                        opacity=0.75,
-                        hover_name='DRS',
-                        hover_data={
-                            'Complétude': ':.2f',
-                            'Score': ':.2f',
-                            'Rang': True,
-                            'Categorie': True
-                        },
-                        title='Score de complétude ajusté par DRS - T1 2026'
-                    )
-                    
-                    fig_carte_fb.update_layout(
-                        height=650,
-                        margin=dict(l=0, r=0, t=50, b=0),
-                        coloraxis_colorbar=dict(
-                            title="Complétude (%)",
-                            tickvals=[0, 35, 70, 90, 100],
-                            ticktext=['0%', '35%', '70%', '90%', '100%']
-                        )
-                    )
-                    
-                    st.plotly_chart(fig_carte_fb, use_container_width=True)
-                    st.caption("Source : Données PNLP - Carte simplifiée (polygones approximatifs)")
-            
-            st.markdown("""
-            <div style="display: flex; justify-content: center; gap: 2rem; margin-top: 1rem; flex-wrap: wrap;">
-                <div style="text-align: center;">
-                    <span style="display: inline-block; width: 20px; height: 20px;
-                                 background-color: #e74c3c; border-radius: 50%;"></span>
-                    <p style="margin: 0.3rem 0; font-size: 0.9rem;">&lt; 70% (Critique)</p>
-                </div>
-                <div style="text-align: center;">
-                    <span style="display: inline-block; width: 20px; height: 20px;
-                                 background-color: #f39c12; border-radius: 50%;"></span>
-                    <p style="margin: 0.3rem 0; font-size: 0.9rem;">70% - 90% (Moyen)</p>
-                </div>
-                <div style="text-align: center;">
-                    <span style="display: inline-block; width: 20px; height: 20px;
-                                 background-color: #27ae60; border-radius: 50%;"></span>
-                    <p style="margin: 0.3rem 0; font-size: 0.9rem;">&gt; 90% (Bon)</p>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            st.markdown("#### 📊 Répartition des DRS par niveau de complétude")
-            
-            repartition = carte_df.groupby('Categorie').size().reset_index(name='Nombre de DRS')
-            repartition_dict = dict(zip(repartition['Categorie'], repartition['Nombre de DRS']))
-            
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                nb_bas = repartition_dict.get('❌ < 70%', 0)
-                st.markdown(f"""
-                <div style="background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
-                            padding: 1.5rem; border-radius: 15px; text-align: center;
-                            border-top: 5px solid #e74c3c;">
-                    <p style="margin: 0; font-size: 2.5rem; font-weight: bold; color: #721c24;">{nb_bas}</p>
-                    <p style="margin: 0.5rem 0 0 0; color: #333; font-size: 0.95rem;">
-                        DRS avec complétude &lt; 70%
-                    </p>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col2:
-                nb_moyen = repartition_dict.get('⚠️ 70% - 90%', 0)
-                st.markdown(f"""
-                <div style="background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%);
-                            padding: 1.5rem; border-radius: 15px; text-align: center;
-                            border-top: 5px solid #f39c12;">
-                    <p style="margin: 0; font-size: 2.5rem; font-weight: bold; color: #856404;">{nb_moyen}</p>
-                    <p style="margin: 0.5rem 0 0 0; color: #333; font-size: 0.95rem;">
-                        DRS entre 70% et 90%
-                    </p>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col3:
-                nb_haut = repartition_dict.get('✅ > 90%', 0)
-                st.markdown(f"""
-                <div style="background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
-                            padding: 1.5rem; border-radius: 15px; text-align: center;
-                            border-top: 5px solid #27ae60;">
-                    <p style="margin: 0; font-size: 2.5rem; font-weight: bold; color: #155724;">{nb_haut}</p>
-                    <p style="margin: 0.5rem 0 0 0; color: #333; font-size: 0.95rem;">
-                        DRS avec complétude &gt; 90%
-                    </p>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            st.markdown("---")
-            st.markdown("#### 📥 Exporter le classement")
-            
-            output_classement = io.BytesIO()
-            with pd.ExcelWriter(output_classement, engine='openpyxl') as writer:
-                scores_df[['DRS', 'Complétude T1 2026 (%)', 'Nb. erreurs', 'Score corrigé C', 'Rang']].to_excel(
-                    writer, index=False, sheet_name='Classement_DRS'
-                )
-            
-            st.download_button(
-                label="📥 Télécharger le classement (XLSX)",
-                data=output_classement.getvalue(),
-                file_name=f"classement_drs_qualite_{datetime.now():%Y%m%d_%H%M%S}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
 
 # ===============================
 # PAGE VISUALISATION
@@ -2731,9 +2417,385 @@ elif page == "📈 Modélisation Statistique":
             <p style="color: #e0e0e0; margin: 0.3rem 0 0 0;">Modélisation interactive avec comparaison Binomiale Négative / ZIP</p>
         </div>
         """, unsafe_allow_html=True)
+        # ==========================================
+        # MODULE : ACP - ANALYSE EN COMPOSANTES PRINCIPALES
+        # ==========================================
+        st.markdown("---")
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #8e44ad 0%, #9b59b6 100%);
+        padding: 1.2rem; border-radius: 12px; color: white; text-align: center; margin: 1rem 0;">
+        <h3 style="color: white; margin: 0;">🧬 ACP - Analyse en Composantes Principales</h3>
+         <p style="color: #f0f0f0; margin: 0.3rem 0 0 0;">
+        Réduction de dimension et visualisation des corrélations entre variables quantitatives
+        </p>
+         </div>
+        """, unsafe_allow_html=True)
 
-        st.markdown("### 🎯 Étape 1 : Choix de la variable dépendante (Y)")
-        
+        variables_acp = {
+            'Consultations': 'Consultations',
+            'Cas suspects': 'Cas_suspects',
+            'Tests réalisés': 'Tests_realises',
+            'Cas confirmés': 'Cas_confirmes',
+            'Taux de positivité (%)': 'Taux_positivite',
+            'Traitement approprié': 'Traitement_approprié',
+            'Taux de traitement (%)': 'Taux_traitement',
+            'GE réalisés': 'GE_realises',
+            'GE positifs': 'GE_positifs',
+            'Taux positivité GE (%)': 'Taux_positivite_GE',
+            'Hospitalisations': 'Hospitalisations',
+            'Hospitalisations traitées': 'Hospitalisations_traitees',
+            'TDR réalisés': 'TDR_realises',
+            'TDR positifs': 'TDR_positifs',
+            'Taux positivité TDR (%)': 'Taux_positivite_TDR',
+            'Décès': 'Deces'
+        }
+        cols_acp = st.multiselect(
+            "📊 Sélectionnez les variables pour l'ACP (minimum 2)",
+            list(variables_acp.keys()),
+            default=list(variables_acp.keys())[:5]
+        )
+        if len(cols_acp) < 2:
+            st.info("ℹ️ Sélectionnez au moins 2 variables pour réaliser une ACP.")
+        else:
+            cols_acp_db = [variables_acp[c] for c in cols_acp]
+
+            df_acp = df.copy()
+            for c in cols_acp_db:
+                df_acp[c] = pd.to_numeric(df_acp[c], errors='coerce')
+
+            df_acp = df_acp.dropna(subset=cols_acp_db)
+            if len(df_acp) < 3:
+                st.warning("⚠️ Pas assez de données complètes pour l'ACP (minimum 3 lignes).")
+            else:
+                # Standardisation
+                X = df_acp[cols_acp_db].values
+                X_mean = X.mean(axis=0)
+                X_std = X.std(axis=0)
+                X_std[X_std == 0] = 1
+                X_scaled = (X - X_mean) / X_std
+
+                # ACP
+                n_comp = min(len(cols_acp_db), 5)
+                pca = PCA(n_components=n_comp)
+                X_pca = pca.fit_transform(X_scaled)
+
+                # Variance expliquée
+                explained_var = pca.explained_variance_ratio_ * 100
+                cum_var = np.cumsum(explained_var)
+
+                st.markdown("### 📊 Variance expliquée par les composantes")
+
+                df_var = pd.DataFrame({
+                    'Composante': [f"PC{i+1}" for i in range(n_comp)],
+                    'Variance expliquée (%)': explained_var,
+                    'Variance cumulée (%)': cum_var
+                })
+
+                col_v1, col_v2 = st.columns([1, 1])
+                with col_v1:
+                    st.dataframe(df_var.style.format({
+                        'Variance expliquée (%)': '{:.2f}',
+                        'Variance cumulée (%)': '{:.2f}'
+                    }), use_container_width=True, hide_index=True)
+
+                with col_v2:
+                    fig_scree = go.Figure()
+                    fig_scree.add_trace(go.Bar(
+                        x=df_var['Composante'],
+                        y=df_var['Variance expliquée (%)'],
+                        name='Variance expliquée',
+                        marker_color='#9b59b6',
+                        text=df_var['Variance expliquée (%)'].round(1).astype(str) + '%',
+                        textposition='outside'
+                    ))
+                    fig_scree.add_trace(go.Scatter(
+                        x=df_var['Composante'],
+                        y=df_var['Variance cumulée (%)'],
+                        name='Variance cumulée',
+                        mode='lines+markers',
+                        line=dict(color='#e74c3c', width=3),
+                        marker=dict(size=10)
+                    ))
+                    fig_scree.update_layout(
+                        title="Éboulis des valeurs propres",
+                        yaxis_title="Pourcentage (%)",
+                        height=350,
+                        hovermode='x unified'
+                    )
+                    st.plotly_chart(fig_scree, use_container_width=True)
+
+                # Cercle des corrélations
+                st.markdown("### 🎯 Cercle des corrélations (PC1 vs PC2)")
+
+                loadings = pca.components_.T * np.sqrt(pca.explained_variance_)
+
+                fig_circle = go.Figure()
+
+                # Cercle unité
+                theta = np.linspace(0, 2 * np.pi, 100)
+                fig_circle.add_trace(go.Scatter(
+                    x=np.cos(theta), y=np.sin(theta),
+                    mode='lines',
+                    line=dict(color='black', dash='dash', width=1),
+                    name='Cercle unité',
+                    showlegend=False
+                ))
+
+                # Flèches des variables
+                for i, var in enumerate(cols_acp):
+                    fig_circle.add_trace(go.Scatter(
+                        x=[0, loadings[i, 0]],
+                        y=[0, loadings[i, 1]],
+                        mode='lines+markers+text',
+                        line=dict(width=2, color='#3498db'),
+                        marker=dict(size=5),
+                        text=[None, var],
+                        textposition='top center',
+                        name=var,
+                        showlegend=False,
+                        hovertemplate=f"<b>{var}</b><br>PC1: {loadings[i,0]:.3f}<br>PC2: {loadings[i,1]:.3f}<extra></extra>"
+                    ))
+
+                fig_circle.update_layout(
+                    title=f"Cercle des corrélations (PC1={explained_var[0]:.1f}% - PC2={explained_var[1] if n_comp>1 else 0:.1f}%)",
+                    xaxis=dict(title=f"PC1 ({explained_var[0]:.1f}%)", range=[-1.2, 1.2], zeroline=True),
+                    yaxis=dict(title=f"PC2 ({explained_var[1] if n_comp>1 else 0:.1f}%)", range=[-1.2, 1.2], zeroline=True),
+                    height=600,
+                    showlegend=False
+                )
+                st.plotly_chart(fig_circle, use_container_width=True)
+
+                # Projection des individus
+                st.markdown("### 🗺️ Projection des individus (PC1 vs PC2)")
+
+                df_proj = pd.DataFrame(X_pca[:, :2], columns=['PC1', 'PC2'])
+                df_proj['DRS'] = df_acp['DRS'].values if 'DRS' in df_acp.columns else 'Inconnu'
+                df_proj['ANNEE'] = df_acp['ANNEE'].values if 'ANNEE' in df_acp.columns else ''
+                df_proj['Mois'] = df_acp['Mois'].values if 'Mois' in df_acp.columns else ''
+
+                fig_proj = px.scatter(
+                    df_proj, x='PC1', y='PC2',
+                    color='DRS',
+                    hover_data=['ANNEE', 'Mois'],
+                    title=f"Projection des individus (PC1={explained_var[0]:.1f}% - PC2={explained_var[1] if n_comp>1 else 0:.1f}%)"
+                )
+                fig_proj.update_traces(marker=dict(size=10, opacity=0.7, line=dict(width=1, color='white')))
+                fig_proj.update_layout(height=550)
+                st.plotly_chart(fig_proj, use_container_width=True)
+
+                # Contributions
+                st.markdown("### 📋 Contributions des variables aux deux premiers axes")
+
+                df_loadings = pd.DataFrame(
+                    loadings[:, :2],
+                    index=cols_acp,
+                    columns=['PC1', 'PC2']
+                ).reset_index().rename(columns={'index': 'Variable'})
+
+                st.dataframe(
+                    df_loadings.style.format({'PC1': '{:.3f}', 'PC2': '{:.3f}'}).background_gradient(
+                        cmap='RdBu_r', axis=None
+                    ),
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+                # Export ACP
+                output_acp = io.BytesIO()
+                with pd.ExcelWriter(output_acp, engine='openpyxl') as writer:
+                    df_var.to_excel(writer, sheet_name='Variance_expliquee', index=False)
+                    df_loadings.to_excel(writer, sheet_name='Contributions', index=False)
+                    df_proj.to_excel(writer, sheet_name='Projection_individus', index=False)
+                st.download_button(
+                    label="📥 Télécharger les résultats ACP (XLSX)",
+                    data=output_acp.getvalue(),
+                    file_name=f"acp_resultats_{datetime.now():%Y%m%d_%H%M%S}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+
+        # ==========================================
+        # MODULE : K-MEANS (K=3)
+        # ==========================================
+        st.markdown("---")
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #e67e22 0%, #f39c12 100%);
+                    padding: 1.2rem; border-radius: 12px; color: white; text-align: center; margin: 1rem 0;">
+            <h3 style="color: white; margin: 0;">🎯 K-means - Classification non supervisée (K=3)</h3>
+            <p style="color: #f0f0f0; margin: 0.3rem 0 0 0;">
+                Regroupement des observations en 3 clusters homogènes
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        variables_km = {
+            'Consultations': 'Consultations',
+            'Cas suspects': 'Cas_suspects',
+            'Tests réalisés': 'Tests_realises',
+            'Cas confirmés': 'Cas_confirmes',
+            'Taux de positivité (%)': 'Taux_positivite',
+            'Traitement approprié': 'Traitement_approprié',
+            'Taux de traitement (%)': 'Taux_traitement',
+            'GE réalisés': 'GE_realises',
+            'GE positifs': 'GE_positifs',
+            'Taux positivité GE (%)': 'Taux_positivite_GE',
+            'Hospitalisations': 'Hospitalisations',
+            'Hospitalisations traitées': 'Hospitalisations_traitees',
+            'TDR réalisés': 'TDR_realises',
+            'TDR positifs': 'TDR_positifs',
+            'Taux positivité TDR (%)': 'Taux_positivite_TDR',
+            'Décès': 'Deces'
+        }
+
+        cols_km = st.multiselect(
+            "📊 Sélectionnez les variables pour K-means (minimum 2)",
+            list(variables_km.keys()),
+            default=list(variables_km.keys())[:4],
+            key='km_vars'
+        )
+
+        if len(cols_km) < 2:
+            st.info("ℹ️ Sélectionnez au moins 2 variables pour réaliser le K-means.")
+        else:
+            cols_km_db = [variables_km[c] for c in cols_km]
+
+            df_km = df.copy()
+            for c in cols_km_db:
+                df_km[c] = pd.to_numeric(df_km[c], errors='coerce')
+
+            df_km = df_km.dropna(subset=cols_km_db)
+
+            if len(df_km) < 3:
+                st.warning("⚠️ Pas assez de données complètes pour K-means (minimum 3 lignes).")
+            else:
+                X_km = df_km[cols_km_db].values
+                X_km_mean = X_km.mean(axis=0)
+                X_km_std = X_km.std(axis=0)
+                X_km_std[X_km_std == 0] = 1
+                X_km_scaled = (X_km - X_km_mean) / X_km_std
+
+                kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
+                clusters = kmeans.fit_predict(X_km_scaled)
+
+                df_km['Cluster'] = clusters
+                df_km['Cluster_Label'] = df_km['Cluster'].apply(lambda x: f"Cluster {x+1}")
+
+                # Silhouette score
+                try:
+                    from sklearn.metrics import silhouette_score
+                    sil_score = silhouette_score(X_km_scaled, clusters) if len(set(clusters)) > 1 else -1
+                except Exception:
+                    sil_score = -1
+
+                # Statistiques par cluster
+                col_k1, col_k2, col_k3, col_k4 = st.columns(4)
+                with col_k1:
+                    st.metric("🎯 K", 3)
+                with col_k2:
+                    st.metric("📋 Observations", len(df_km))
+                with col_k3:
+                    st.metric("📊 Variables", len(cols_km))
+                with col_k4:
+                    st.metric("📈 Silhouette", f"{sil_score:.3f}" if sil_score >= 0 else "N/A")
+
+                # Aperçu des clusters
+                st.markdown("### 📋 Répartition des observations par cluster")
+
+                cluster_counts = df_km['Cluster_Label'].value_counts().sort_index().reset_index()
+                cluster_counts.columns = ['Cluster', 'Nombre']
+
+                col_c1, col_c2 = st.columns([1, 1])
+                with col_c1:
+                    st.dataframe(cluster_counts, use_container_width=True, hide_index=True)
+                with col_c2:
+                    fig_pie = px.pie(
+                        cluster_counts, names='Cluster', values='Nombre',
+                        title="Répartition des clusters",
+                        color_discrete_sequence=['#e74c3c', '#f39c12', '#27ae60']
+                    )
+                    st.plotly_chart(fig_pie, use_container_width=True)
+
+                # Profils moyens
+                st.markdown("### 📊 Profils moyens par cluster")
+
+                profils = df_km.groupby('Cluster_Label')[cols_km_db].mean().round(2).reset_index()
+                profils.columns = ['Cluster'] + cols_km
+
+                st.dataframe(
+                    profils.style.background_gradient(cmap='YlOrRd', axis=0),
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+                # Visualisation 2D des clusters (PCA)
+                if len(cols_km_db) >= 2:
+                    pca_km = PCA(n_components=2)
+                    X_km_pca = pca_km.fit_transform(X_km_scaled)
+                    var_km = pca_km.explained_variance_ratio_ * 100
+
+                    df_km_2d = pd.DataFrame(X_km_pca, columns=['PC1', 'PC2'])
+                    df_km_2d['Cluster'] = df_km['Cluster_Label'].values
+                    df_km_2d['DRS'] = df_km['DRS'].values if 'DRS' in df_km.columns else 'Inconnu'
+                    df_km_2d['ANNEE'] = df_km['ANNEE'].values if 'ANNEE' in df_km.columns else ''
+                    df_km_2d['Mois'] = df_km['Mois'].values if 'Mois' in df_km.columns else ''
+
+                    st.markdown("### 🗺️ Visualisation des clusters (ACP 2D)")
+
+                    fig_km = px.scatter(
+                        df_km_2d, x='PC1', y='PC2',
+                        color='Cluster',
+                        symbol='Cluster',
+                        hover_data=['DRS', 'ANNEE', 'Mois'],
+                        title=f"Clusters K-means projetés sur PC1 ({var_km[0]:.1f}%) et PC2 ({var_km[1]:.1f}%)",
+                        color_discrete_sequence=['#e74c3c', '#f39c12', '#27ae60']
+                    )
+                    fig_km.update_traces(marker=dict(size=12, opacity=0.8, line=dict(width=1, color='white')))
+                    fig_km.update_layout(height=600)
+                    st.plotly_chart(fig_km, use_container_width=True)
+
+                # Centroïdes
+                st.markdown("### 🎯 Centroïdes des clusters (dans l'espace standardisé)")
+
+                centroids = pd.DataFrame(
+                    kmeans.cluster_centers_,
+                    columns=cols_km
+                )
+                centroids.insert(0, 'Cluster', [f"Cluster {i+1}" for i in range(3)])
+
+                st.dataframe(
+                    centroids.style.format({c: '{:.3f}' for c in cols_km}).background_gradient(
+                        cmap='coolwarm', axis=0
+                    ),
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+                # Détail des observations par cluster
+                st.markdown("### 🔍 Détail des observations par cluster")
+
+                selected_cluster = st.selectbox(
+                    "Choisir un cluster à afficher",
+                    sorted(df_km['Cluster_Label'].unique()),
+                    key='km_cluster_detail'
+                )
+
+                df_cluster_detail = df_km[df_km['Cluster_Label'] == selected_cluster]
+                st.write(f"**{len(df_cluster_detail)} observation(s)** dans le {selected_cluster}")
+                st.dataframe(df_cluster_detail, use_container_width=True)
+
+                # Export K-means
+                output_km = io.BytesIO()
+                with pd.ExcelWriter(output_km, engine='openpyxl') as writer:
+                    profils.to_excel(writer, sheet_name='Profils_moyens', index=False)
+                    centroids.to_excel(writer, sheet_name='Centroides', index=False)
+                    df_km.to_excel(writer, sheet_name='Observations_clusters', index=False)
+                st.download_button(
+                    label="📥 Télécharger les résultats K-means (XLSX)",
+                    data=output_km.getvalue(),
+                    file_name=f"kmeans_resultats_{datetime.now():%Y%m%d_%H%M%S}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
         variables_disponibles = {
             'Décès': 'Deces',
             'Cas confirmés': 'Cas_confirmes',
@@ -2744,6 +2806,7 @@ elif page == "📈 Modélisation Statistique":
             'GE positifs': 'GE_positifs',
             'TDR positifs': 'TDR_positifs'
         }
+        st.markdown("### 📊 Étape 1 : Choix de la  variables à expliquer (Y)")
         
         col1, col2 = st.columns(2)
         
