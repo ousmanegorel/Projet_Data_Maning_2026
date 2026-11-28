@@ -1571,7 +1571,7 @@ elif page == "🔍 Qualité des données":
                         return 'background-color: #f8d7da; font-weight: bold; color: #721c24;'
                     return ''
                 
-                styled_scores = df_affichage.style.applymap(color_rank, subset=['Rang'])
+                styled_scores = df_affichage.style.map(color_rank, subset=['Rang'])
                 
                 st.dataframe(styled_scores, use_container_width=True, hide_index=True)
             
@@ -2811,7 +2811,7 @@ elif page == "📈 Modélisation Statistique":
         col1, col2 = st.columns(2)
         
         with col1:
-            variable_dependante_label = st.selectbox(
+            variable_dependante_label = st.selectbox( 
                 "Choisissez la variable à expliquer",
                 list(variables_disponibles.keys()),
                 index=0,
